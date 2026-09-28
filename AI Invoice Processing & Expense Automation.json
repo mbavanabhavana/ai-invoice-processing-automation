@@ -1,0 +1,666 @@
+{
+  "name": "AI Invoice Processing & Expense Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "maxResults": 1,
+        "filters": {}
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        352,
+        -48
+      ],
+      "id": "109f21fa-6da5-4152-86c2-d3c9694fcb4c",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "GW5OhTcC1SoUd4CO",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "models/gemini-3-flash-preview"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are an invoice data extraction assistant.\n\nFirst determine whether the email contains a genuine invoice, receipt, bill, or payment confirmation.\n\nIMPORTANT:\nA promotional email, advertisement, product offer, upgrade offer, newsletter, discount, or marketing email is NOT an invoice.\n\nFor example, an email saying:\n\"Get a year of Plus for ₹4,700\"\nis a promotional offer and must NOT be treated as an invoice.\n\nA price, currency, product name, or \"billed annually\" statement alone is NOT enough to classify an email as an invoice.\n\nA genuine invoice should contain transaction/invoice evidence such as an invoice number, receipt number, billing details, invoice date, purchase/payment information, tax information, or a clear confirmation that a transaction has occurred.\n\nReturn ONLY valid JSON.\n\nUse exactly this structure:\n\n{\n  \"is_invoice\": false,\n  \"vendor_name\": null,\n  \"vendor_gstin\": null,\n  \"invoice_number\": null,\n  \"invoice_date\": null,\n  \"due_date\": null,\n  \"currency\": null,\n  \"subtotal\": null,\n  \"cgst\": null,\n  \"sgst\": null,\n  \"total_amount\": null,\n  \"payment_status\": null,\n  \"items\": []\n}\n\nRules:\n\n- Set \"is_invoice\" to true only when the email contains evidence of a genuine invoice, receipt, bill, or completed payment transaction.\n- Set \"is_invoice\" to false for promotional, advertising, marketing, newsletter, discount, trial, upgrade, or product-offer emails.\n- If \"is_invoice\" is false, all invoice fields must be null and \"items\" must be an empty array.\n- Do not treat an advertised price as a paid amount.\n- Do not guess missing values.\n- Extract only information actually present in the email.\n- Use numbers for monetary amounts.\n- Remove currency symbols and commas from numeric amounts.\n- Preserve invoice dates as written.\n- Include every invoice item when the email is a genuine invoice.\n- Return only JSON.\n\nINVOICE EMAIL TEXT:\n\n{{ $('Get a message').item.json.text }}"
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        1296,
+        160
+      ],
+      "id": "655336bc-5fbe-4189-8e62-129a8e9690de",
+      "name": "Message a model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "zGBsfS9vJc2mMdf5",
+          "name": "Google Gemini(PaLM) Api account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = $json.content.parts[0].text;\n\nconst cleaned = text\n  .replace(/```json/g, '')\n  .replace(/```/g, '')\n  .trim();\n\nconst invoice = JSON.parse(cleaned);\n\nreturn {\n  json: invoice\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1904,
+        192
+      ],
+      "id": "f3ef6b8c-85cf-44de-a90d-7171a6790201",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1aW-Ykw1k5lbc9zbxzWtyBsSTCp5SYjXeDYcI5UeWQT8",
+          "mode": "list",
+          "cachedResultName": "invoice_automation_google_sheet_template",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1aW-Ykw1k5lbc9zbxzWtyBsSTCp5SYjXeDYcI5UeWQT8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 214311365,
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1aW-Ykw1k5lbc9zbxzWtyBsSTCp5SYjXeDYcI5UeWQT8/edit#gid=214311365"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Vendor Name": "={{ $json.vendor_name }}",
+            "Vendor GSTIN": "={{ $json.vendor_gstin }}",
+            "Invoice Number": "={{ $json.invoice_number }}",
+            "Invoice Date": "={{ $json.invoice_date }}",
+            "Due Date": "={{ $json.due_date }}",
+            "Currency": "={{ $json.currency }}",
+            "Subtotal": "={{ $json.subtotal }}",
+            "CGST": "={{ $json.cgst }}",
+            "SGST": "={{ $json.sgst }}",
+            "Total Amount": "={{ $json.total_amount }}",
+            "Payment Status": "={{ $json.payment_status }}",
+            "Items": "={{ $('Invoice Validation').first().json.items.map(item => `${item.description || item.name} | Qty: ${item.quantity} | Amount: ${item.amount}`).join(', ') }}",
+            "Message ID": "={{ $('Get a message').item.json.id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Vendor Name",
+              "displayName": "Vendor Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Vendor GSTIN",
+              "displayName": "Vendor GSTIN",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Invoice Number",
+              "displayName": "Invoice Number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Invoice Date",
+              "displayName": "Invoice Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Due Date",
+              "displayName": "Due Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Currency",
+              "displayName": "Currency",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Subtotal",
+              "displayName": "Subtotal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "CGST",
+              "displayName": "CGST",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "SGST",
+              "displayName": "SGST",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Total Amount",
+              "displayName": "Total Amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Payment Status",
+              "displayName": "Payment Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Items",
+              "displayName": "Items",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Message ID",
+              "displayName": "Message ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2704,
+        48
+      ],
+      "id": "92fc78c8-58a4-4a6a-8b69-e275c29e0bfc",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "nlYdlhU2HOAgS96j",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const subtotal = Number($json.subtotal || 0);\nconst cgst = Number($json.cgst || 0);\nconst sgst = Number($json.sgst || 0);\nconst total = Number($json.total_amount || 0);\n\nconst calculatedTotal = subtotal + cgst + sgst;\n\nconst difference = Math.abs(calculatedTotal - total);\n\nconst validationStatus = difference < 0.01\n  ? \"Valid\"\n  : \"Mismatch\";\n\nreturn {\n  json: {\n    ...$json,\n    calculated_total: calculatedTotal,\n    validation_status: validationStatus,\n    difference: difference\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2032,
+        32
+      ],
+      "id": "c60ff40a-6b21-4a21-9b9f-06fb9b007da5",
+      "name": "Invoice Validation"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "messageId": "={{ $json.id }}",
+        "simple": "={{ false }}",
+        "options": {
+          "downloadAttachments": "={{ true }}"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        560,
+        -48
+      ],
+      "id": "68cf4db8-23e3-4dae-b3a0-4c6926dfb59e",
+      "name": "Get a message",
+      "webhookId": "06944ec6-4552-4aec-a1d4-99e468d84ffc",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "GW5OhTcC1SoUd4CO",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "51cb9e05-9ddd-4cb6-bb15-f609286519fc",
+              "leftValue": "={{ Object.keys($binary || {}).length > 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        752,
+        -48
+      ],
+      "id": "659a24ed-b229-4bde-8e0d-643b57230f90",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "=attachment_0",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        1072,
+        -64
+      ],
+      "id": "b1dca64d-f26d-438c-900b-d95752c83604",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "models/gemini-3-flash-preview"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are an invoice data extraction assistant.\n\nRead the extracted PDF text and determine whether it is a genuine invoice, receipt, bill, or payment confirmation.\n\nReturn ONLY valid JSON.\n\nUse exactly this structure:\n\n{\n  \"is_invoice\": false,\n  \"vendor_name\": null,\n  \"vendor_gstin\": null,\n  \"invoice_number\": null,\n  \"invoice_date\": null,\n  \"due_date\": null,\n  \"currency\": null,\n  \"subtotal\": null,\n  \"cgst\": null,\n  \"sgst\": null,\n  \"total_amount\": null,\n  \"payment_status\": null,\n  \"items\": []\n}\n\nRules:\n\n- Set \"is_invoice\" to true only if the PDF contains genuine invoice or transaction evidence.\n- Do not guess missing information.\n- Use numbers for monetary amounts.\n- Remove currency symbols and commas from monetary numbers.\n- Extract all invoice items.\n- For each item use:\n  \"name\": item name,\n  \"quantity\": number,\n  \"amount\": number.\n- Return only JSON.\n\nEXTRACTED PDF TEXT:\n\n{{ $json.text }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        1312,
+        -64
+      ],
+      "id": "4f0e2926-b08c-4bf4-b8d7-e84c31be1de3",
+      "name": "Message a model1",
+      "retryOnFail": true,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "zGBsfS9vJc2mMdf5",
+          "name": "Google Gemini(PaLM) Api account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "809528e9-2c44-476e-84a4-d7efbdb2a525",
+              "leftValue": "={{ JSON.parse($json.content.parts[0].text).is_invoice }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": "={{ false }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1664,
+        176
+      ],
+      "id": "3d8d6ed6-e78a-4f0b-84a1-9077e77e3a91",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = $json.content.parts[0].text;\n\nconst data = JSON.parse(text);\n\nreturn [\n  {\n    json: data\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1664,
+        -32
+      ],
+      "id": "5f101751-f7c3-4142-aa54-9b4dde3d189b",
+      "name": "PDF JSON Parser"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1aW-Ykw1k5lbc9zbxzWtyBsSTCp5SYjXeDYcI5UeWQT8",
+          "mode": "list",
+          "cachedResultName": "invoice_automation_google_sheet_template",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1aW-Ykw1k5lbc9zbxzWtyBsSTCp5SYjXeDYcI5UeWQT8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 214311365,
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1aW-Ykw1k5lbc9zbxzWtyBsSTCp5SYjXeDYcI5UeWQT8/edit#gid=214311365"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Message ID",
+              "lookupValue": "={{ $('Get a message').item.json.id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2224,
+        32
+      ],
+      "id": "bffdd42d-8704-49dc-864f-ba8c2708b35f",
+      "name": "Get row(s) in sheet",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "nlYdlhU2HOAgS96j",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "aa38f34d-c489-40e9-a768-9070f5794909",
+              "leftValue": "={{ $json.row_number }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2448,
+        32
+      ],
+      "id": "d2c0e430-8e57-4381-9a9e-dacc92b6ef08",
+      "name": "If2",
+      "alwaysOutputData": true
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Invoice Validation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Invoice Validation": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a message": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Message a model1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model1": {
+      "main": [
+        [
+          {
+            "node": "PDF JSON Parser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "PDF JSON Parser": {
+      "main": [
+        [
+          {
+            "node": "Invoice Validation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "If2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If2": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "96567a4e-a307-4d48-8f81-f2f7e6ffbc89",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1800e08fc393ac3b85b1ce78c075ae9896c73856a5db56b474a918751cffab82"
+  },
+  "nodeGroups": [],
+  "id": "Jie8rQuAyowEa3V8",
+  "tags": []
+}
